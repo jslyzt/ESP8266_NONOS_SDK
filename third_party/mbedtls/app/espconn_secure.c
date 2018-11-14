@@ -192,6 +192,8 @@ espconn_secure_accept(struct espconn *espconn)
 *******************************************************************************/
 bool ICACHE_FLASH_ATTR espconn_secure_set_size(uint8 level, uint16 size)
 {
+	size = (size < 4096) ? 4096 : size;
+	
 	if (level >= ESPCONN_MAX || level <= ESPCONN_IDLE)
 		return false;
 

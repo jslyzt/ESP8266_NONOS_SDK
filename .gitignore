@@ -1,0 +1,6 @@
+/bin
+/esp_mqtt/.output
+/esp_mqtt/mqtt/.output
+/esp_mqtt/modules/.output
+/esp_mqtt/user/.output
+/.vscode
