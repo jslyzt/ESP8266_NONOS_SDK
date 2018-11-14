@@ -69,16 +69,57 @@ void mqttPublishedCb(uint32_t* args) {
     INFO("MQTT: Published\r\n");
 }
 
-void pinOn(const char* data, uint32_t data_len) {
-
+void pinOnOff(const char* data, uint32_t len, bool onoff) {
+    uint8_t i = 0;
+    for (; i < g_portcfg_cnt; i++) {
+        struct portcfg* cfg = &g_portcfg[i];
+        if(cfg != NULL && os_strncmp(cfg->name, data, len) == 0) {
+            if(cfg->onoff != onoff) {
+                cfg->onoff = onoff;
+                GPIO_OUTPUT_SET(cfg->port, (onoff ? 1 : 0));
+                INFO("pin: %d, key: %s, %s\n", cfg->port, cfg->name, (onoff ? "on" : "off"));
+            }
+        }
+    }
 }
 
-void pinOff(const char* data, uint32_t data_len) {
-    
+void pinOn(const char* data, uint32_t len) {
+    pinOnOff(data, len, true);
 }
 
-void pinState(const char* data, uint32_t data_len) {
-    
+void pinOff(const char* data, uint32_t len) {
+    pinOnOff(data, len, false);
+}
+
+void pinState(const char* data, uint32_t len) {
+    INFO("pin state sync, data: %s, length: %d", data, len);
+
+    syncState = false;
+    unsigned int pos = 0, posk = 0, posv = 0;
+    char ch = 0, val = 0;
+    char key[11] = { 0 };
+
+    while (pos < len) {
+        ch = *(data + pos++);
+        if (ch == ':') {
+            posk = pos;
+            if (posk < posv || posk - pos > 10) {
+                INFO("pin state sync, key out of range 10, %d", data + posv);
+                break;
+            }
+            os_strncpy(key, data + posv, posk - posv - 1);
+            key[posk - posv] = 0;
+        }
+        if (ch == ',') {
+            val = *(data + posk);
+            if(val == '0') {
+                pinOnOff(key, posk - posv - 1, false);
+            } else {
+                pinOnOff(key, posk - posv - 1, true);
+            }
+            posv = pos;
+        }
+    }
 }
 
 void mqttDataCb(uint32_t* args, const char* topic, uint32_t topic_len, const char* data, uint32_t data_len) {
@@ -163,6 +204,15 @@ void to_scan_wifi(void) {
 void user_init(void) {
     uart_init(BIT_RATE_115200, BIT_RATE_115200);
     //os_delay_us(60000);
+
+    gpio_init();
+    uint8_t i = 0;
+    for (; i < g_portcfg_cnt; i++) {
+        struct portcfg* cfg = &g_portcfg[i];
+        if(cfg != NULL) {
+            GPIO_OUTPUT_SET(cfg->port, (cfg->onoff ? 1 : 0));
+        }
+    }
 
     wifi_set_opmode(STATION_MODE);
     wifi_station_set_auto_connect(false);
