@@ -210,6 +210,7 @@ void user_init(void) {
     for (; i < g_portcfg_cnt; i++) {
         struct portcfg* cfg = &g_portcfg[i];
         if(cfg != NULL) {
+            PIN_FUNC_SELECT(cfg->periphsid,cfg->funcid);
             GPIO_OUTPUT_SET(cfg->port, (cfg->onoff ? 1 : 0));
         }
     }

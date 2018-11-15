@@ -12,6 +12,8 @@ extern struct servercfg g_servercfg[];
 extern uint8_t g_servercfg_cnt;
 
 struct portcfg {
+    int32_t periphsid;
+    int8_t funcid;
     uint8_t port;
     const char* name;
     bool onoff;
