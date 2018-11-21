@@ -38,16 +38,15 @@ void publish_state() {
 void wifiConnectCb(uint8_t status) {
     if (status != STATION_GOT_IP) {
         MQTT_Disconnect(&mqttClient);
+        os_timer_disarm(&pub_timer);
     } else {
         struct ip_info ipconfig;
         if(wifi_get_ip_info(STATION_IF, &ipconfig) == true) {
             os_memset(sip, 0, sizeof(sip));
             os_sprintf(sip, IPSTR, IP2STR(&ipconfig.ip));
+            os_printf("wifi connect ip: %s\n", sip);
         }
-        os_timer_disarm(&pub_timer);
-        os_timer_setfn(&pub_timer, (os_timer_func_t*)publish_state, NULL);
-        os_timer_arm(&pub_timer, 5000, 1); //5s一次
-        publish_state();
+        MQTT_Connect(&mqttClient);
     }
 }
 
@@ -58,11 +57,16 @@ void mqttConnectedCb(uint32_t* args) {
     MQTT_Client* client = (MQTT_Client*)args;
     if(client != NULL) {
         MQTT_Subscribe(client, subtopic, 2);    // 设置订阅
+        os_timer_disarm(&pub_timer);
+        os_timer_setfn(&pub_timer, (os_timer_func_t*)publish_state, NULL);
+        os_timer_arm(&pub_timer, 5000, 1); //5s一次
+        publish_state();
     }
 }
 
 void mqttDisconnectedCb(uint32_t* args) {
     INFO("MQTT: Disconnected\r\n");
+    os_timer_disarm(&pub_timer);
 }
 
 void mqttPublishedCb(uint32_t* args) {
@@ -161,6 +165,7 @@ void mqttDataCb(uint32_t* args, const char* topic, uint32_t topic_len, const cha
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
+void get_config_done();
 // 扫描wifi
 void ICACHE_FLASH_ATTR
 scan_done(void* arg, STATUS status) {
@@ -193,6 +198,7 @@ scan_done(void* arg, STATUS status) {
     } else {
         os_printf("err, scan status %d\r\n", status);
     }
+    get_config_done();
 }
 
 void to_scan_wifi(void) {
@@ -200,6 +206,52 @@ void to_scan_wifi(void) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
+void get_config_done() {
+    if(choose_config < 0 || choose_config >= g_servercfg_cnt) {
+         os_printf("scan wifi error, can not find choose wifi, restart\n");
+         system_restart();
+         return;
+    }
+    
+    struct servercfg* cfg = &g_servercfg[choose_config];
+    if(cfg == NULL) {
+        os_printf("get wifi config error, restart\n");
+        system_restart();
+        return;
+    }
+
+    os_printf("scan wifi done, choose wifi is %s\n", cfg->ssid);
+
+    uint8 bssid[6];
+    os_memset(bssid, 0, 6);
+    if(wifi_get_macaddr(STATION_IF, bssid) == false) {
+        os_printf("get mac address error, restart\n");
+        system_restart();
+        return;
+    }
+
+    os_memset(smac, 0, sizeof(smac));
+    os_sprintf(smac, "%02x-%02x-%02x-%02x-%02x-%02x", MAC2STR(bssid));
+    os_printf("wifi connect mac: %s\n", smac);
+
+    os_memset(subtopic, 0, sizeof(subtopic));
+    os_sprintf(subtopic, "/arduino/stoc/%s", smac);
+    os_memset(pubtopic, 0, sizeof(pubtopic));
+    os_sprintf(pubtopic, "/arduino/ctos/%s", smac);
+
+    MQTT_InitConnection(&mqttClient, (uint8_t*)cfg->server, cfg->port, DEFAULT_SECURITY);
+    MQTT_InitClient(&mqttClient, smac, "", "", 3, 1);
+
+    MQTT_OnConnected(&mqttClient, mqttConnectedCb);         // mqtt 连接回调
+    MQTT_OnDisconnected(&mqttClient, mqttDisconnectedCb);   // mqtt 断开连接回调
+    MQTT_OnPublished(&mqttClient, mqttPublishedCb);         // mqtt 发布数据回调
+    MQTT_OnData(&mqttClient, mqttDataCb);                   // mqtt 收到数据回调
+
+    WIFI_Connect((uint8_t*)cfg->ssid, (uint8_t*)cfg->passwd, wifiConnectCb);      // wifi 连接状态回调
+
+    INFO("\r\nSystem started ...\r\n");
+}
+
 // 入口
 void user_init(void) {
     uart_init(BIT_RATE_115200, BIT_RATE_115200);
@@ -218,45 +270,4 @@ void user_init(void) {
     wifi_set_opmode(STATION_MODE);
     wifi_station_set_auto_connect(false);
     system_init_done_cb(to_scan_wifi);
-
-    if(choose_config < 0 || choose_config >= g_servercfg_cnt) {
-         os_printf("scan wifi error, can not find choose wifi, restart\n");
-         system_restart();
-         return;
-    }
-
-    struct servercfg* cfg = &g_servercfg[choose_config];
-    if(cfg == NULL) {
-        os_printf("get wifi config error, restart\n");
-        system_restart();
-        return;
-    }
-
-    uint8 bssid[6];
-    os_memset(bssid, 0, 6);
-    if(wifi_get_macaddr(STATION_IF, bssid) == false) {
-        os_printf("get mac address error, restart\n");
-        system_restart();
-        return;
-    }
-
-    os_memset(smac, 0, sizeof(smac));
-    os_sprintf(smac, "%02x-%02x-%02x-%02x-%02x-%02x", MAC2STR(bssid));
-
-    os_memset(subtopic, 0, sizeof(subtopic));
-    os_sprintf(subtopic, "/arduino/stoc/%s", smac);
-    os_memset(pubtopic, 0, sizeof(pubtopic));
-    os_sprintf(pubtopic, "/arduino/ctos/%s", smac);
-
-    MQTT_InitConnection(&mqttClient, (uint8_t*)cfg->server, cfg->port, DEFAULT_SECURITY);
-    MQTT_InitClient(&mqttClient, smac, "", "", 3, 1);
-
-    MQTT_OnConnected(&mqttClient, mqttConnectedCb);         // mqtt 连接回调
-    MQTT_OnDisconnected(&mqttClient, mqttDisconnectedCb);   // mqtt 断开连接回调
-    MQTT_OnPublished(&mqttClient, mqttPublishedCb);         // mqtt 发布数据回调
-    MQTT_OnData(&mqttClient, mqttDataCb);                   // mqtt 收到数据回调
-
-    WIFI_Connect((uint8_t*)cfg->ssid, (uint8_t*)cfg->passwd, wifiConnectCb);      // wifi 连接状态回调
-
-    INFO("\r\nSystem started ...\r\n");
 }
