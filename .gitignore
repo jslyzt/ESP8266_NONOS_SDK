@@ -1,8 +1,12 @@
 /bin
-/esp_mqtt/.output
-/esp_mqtt/mqtt/.output
-/esp_mqtt/modules/.output
-/esp_mqtt/user/.output
+/single_lamp/.output
+/single_lamp/mqtt/.output
+/single_lamp/modules/.output
+/single_lamp/user/.output
+/multi_lamp/.output
+/multi_lamp/mqtt/.output
+/multi_lamp/modules/.output
+/multi_lamp/user/.output
 /.vscode
 /.project
 /.cproject
