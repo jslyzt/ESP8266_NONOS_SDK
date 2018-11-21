@@ -99,7 +99,7 @@ DEPENDS_eagle.app.v6 = \
 #	-DTXRX_RXBUF_DEBUG
 #	-DWLAN_CONFIG_CCX
 CONFIGURATION_DEFINES =	-DICACHE_FLASH \
-                        -DGLOBAL_DEBUG_ON
+                        #-DGLOBAL_DEBUG_ON
 
 DEFINES +=				\
 	$(UNIVERSAL_TARGET_DEFINES)	\

@@ -53,7 +53,7 @@ void wifiConnectCb(uint8_t status) {
 ////////////////////////////////////////////////////////////////////////////////////
 
 void mqttConnectedCb(uint32_t* args) {
-    INFO("MQTT: Connected\r\n");
+    os_printf("MQTT: Connected\r\n");
     MQTT_Client* client = (MQTT_Client*)args;
     if(client != NULL) {
         MQTT_Subscribe(client, subtopic, 2);    // 设置订阅
@@ -65,12 +65,12 @@ void mqttConnectedCb(uint32_t* args) {
 }
 
 void mqttDisconnectedCb(uint32_t* args) {
-    INFO("MQTT: Disconnected\r\n");
+    os_printf("MQTT: Disconnected\r\n");
     os_timer_disarm(&pub_timer);
 }
 
 void mqttPublishedCb(uint32_t* args) {
-    INFO("MQTT: Published\r\n");
+    os_printf("MQTT: Published\r\n");
 }
 
 void pinOnOff(const char* data, uint32_t len, bool onoff) {
@@ -81,7 +81,7 @@ void pinOnOff(const char* data, uint32_t len, bool onoff) {
             if(cfg->onoff != onoff) {
                 cfg->onoff = onoff;
                 GPIO_OUTPUT_SET(cfg->port, (onoff ? 1 : 0));
-                INFO("pin: %d, key: %s, %s\n", cfg->port, cfg->name, (onoff ? "on" : "off"));
+                os_printf("pin: %d, key: %s, %s\n", cfg->port, cfg->name, (onoff ? "on" : "off"));
             }
         }
     }
@@ -96,7 +96,7 @@ void pinOff(const char* data, uint32_t len) {
 }
 
 void pinState(const char* data, uint32_t len) {
-    INFO("pin state sync, data: %s, length: %d", data, len);
+    os_printf("pin state sync, data: %s, length: %d", data, len);
 
     syncState = false;
     unsigned int pos = 0, posk = 0, posv = 0;
@@ -108,7 +108,7 @@ void pinState(const char* data, uint32_t len) {
         if (ch == ':') {
             posk = pos;
             if (posk < posv || posk - pos > 10) {
-                INFO("pin state sync, key out of range 10, %d", data + posv);
+                os_printf("pin state sync, key out of range 10, %d", data + posv);
                 break;
             }
             os_strncpy(key, data + posv, posk - posv - 1);
@@ -146,12 +146,12 @@ void mqttDataCb(uint32_t* args, const char* topic, uint32_t topic_len, const cha
     }
 
     if (pos >= data_len) {
-        INFO("receive data length error, topic: %s, data: %s", topic, data);
+        os_printf("receive data length error, topic: %s, data: %s", topic, data);
         return;
     }
 
     if (klen <= 0) {
-        INFO("receive data key error, topic: %s, data: %s", topic, data);
+        os_printf("receive data key error, topic: %s, data: %s", topic, data);
         return;
     }
 
@@ -244,12 +244,12 @@ void get_config_done() {
 
     MQTT_OnConnected(&mqttClient, mqttConnectedCb);         // mqtt 连接回调
     MQTT_OnDisconnected(&mqttClient, mqttDisconnectedCb);   // mqtt 断开连接回调
-    MQTT_OnPublished(&mqttClient, mqttPublishedCb);         // mqtt 发布数据回调
+    //MQTT_OnPublished(&mqttClient, mqttPublishedCb);         // mqtt 发布数据回调
     MQTT_OnData(&mqttClient, mqttDataCb);                   // mqtt 收到数据回调
 
     WIFI_Connect((uint8_t*)cfg->ssid, (uint8_t*)cfg->passwd, wifiConnectCb);      // wifi 连接状态回调
 
-    INFO("\r\nSystem started ...\r\n");
+    os_printf("\r\nSystem started ...\r\n");
 }
 
 // 入口
