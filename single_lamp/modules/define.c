@@ -10,7 +10,7 @@ uint8_t g_servercfg_cnt = sizeof(g_servercfg) / sizeof(struct servercfg);
 
 
 struct portcfg g_portcfg[] = {
-    { PERIPHS_IO_MUX_GPIO0_U, FUNC_GPIO0, GPIO_ID_PIN(0), "0", true },
+    //{ PERIPHS_IO_MUX_GPIO0_U, FUNC_GPIO0, GPIO_ID_PIN(0), "0", true },
     { PERIPHS_IO_MUX_GPIO2_U, FUNC_GPIO2, GPIO_ID_PIN(2), "lamp", false },
 };
 uint8_t g_portcfg_cnt = sizeof(g_portcfg) / sizeof(struct portcfg);

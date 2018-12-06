@@ -22,17 +22,8 @@ static ETSTimer pub_timer;
 
 ////////////////////////////////////////////////////////////////////////////////////
 void publish_state() {
-    char oinfo[512] = {0};
-    char pinfo[512] = {0};
-    uint8_t i = 0;
-    for (; i < g_portcfg_cnt; i++) {
-        struct portcfg* cfg = &g_portcfg[i];
-        if(cfg != NULL) {
-            os_sprintf(pinfo + os_strlen(pinfo), "%s:%d,", cfg->name, (cfg->onoff ? 1 : 0));
-        }
-    }
-    os_sprintf(oinfo, "%s|%s|%d|[%s]", smac, sip, (syncState ? 1 : 0), pinfo);
-    MQTT_Publish(&mqttClient, pubtopic, oinfo, os_strlen(oinfo), 2, 0);
+    //os_sprintf(oinfo, "%s|%s|%d|[%s]", smac, sip, (syncState ? 1 : 0), pinfo);
+    //MQTT_Publish(&mqttClient, pubtopic, oinfo, os_strlen(oinfo), 2, 0);
 }
 
 void wifiConnectCb(uint8_t status) {
@@ -59,7 +50,7 @@ void mqttConnectedCb(uint32_t* args) {
         MQTT_Subscribe(client, subtopic, 2);    // 设置订阅
         os_timer_disarm(&pub_timer);
         os_timer_setfn(&pub_timer, (os_timer_func_t*)publish_state, NULL);
-        os_timer_arm(&pub_timer, 5000, 1); //5s一次
+        os_timer_arm(&pub_timer, 5000, 1);     // 5s一次
         publish_state();
     }
 }
@@ -73,94 +64,11 @@ void mqttPublishedCb(uint32_t* args) {
     INFO("MQTT: Published\r\n");
 }
 
-void pinOnOff(const char* data, uint32_t len, bool onoff) {
-    uint8_t i = 0;
-    for (; i < g_portcfg_cnt; i++) {
-        struct portcfg* cfg = &g_portcfg[i];
-        if(cfg != NULL && os_strncmp(cfg->name, data, len) == 0) {
-            if(cfg->onoff != onoff) {
-                cfg->onoff = onoff;
-                GPIO_OUTPUT_SET(cfg->port, (onoff ? 1 : 0));
-                INFO("pin: %d, key: %s, %s\n", cfg->port, cfg->name, (onoff ? "on" : "off"));
-            }
-        }
-    }
-}
-
-void pinOn(const char* data, uint32_t len) {
-    pinOnOff(data, len, true);
-}
-
-void pinOff(const char* data, uint32_t len) {
-    pinOnOff(data, len, false);
-}
-
-void pinState(const char* data, uint32_t len) {
-    INFO("pin state sync, data: %s, length: %d", data, len);
-
-    syncState = false;
-    unsigned int pos = 0, posk = 0, posv = 0;
-    char ch = 0, val = 0;
-    char key[11] = { 0 };
-
-    while (pos < len) {
-        ch = *(data + pos++);
-        if (ch == ':') {
-            posk = pos;
-            if (posk < posv || posk - pos > 10) {
-                INFO("pin state sync, key out of range 10, %d", data + posv);
-                break;
-            }
-            os_strncpy(key, data + posv, posk - posv - 1);
-            key[posk - posv] = 0;
-        }
-        if (ch == ',') {
-            val = *(data + posk);
-            if(val == '0') {
-                pinOnOff(key, posk - posv - 1, false);
-            } else {
-                pinOnOff(key, posk - posv - 1, true);
-            }
-            posv = pos;
-        }
-    }
-}
 
 void mqttDataCb(uint32_t* args, const char* topic, uint32_t topic_len, const char* data, uint32_t data_len) {
     MQTT_Client* client = (MQTT_Client*)args;
     if(client == NULL || data_len <= 0 || data == NULL) {
         return;
-    }
-    char key[64] = {0};
-    uint32_t klen = 0, pos = 0;
-    if (*(data + (pos++)) == '[') {
-        char ch = 0;
-        while (pos < data_len) {
-            ch = *(data + (pos++));
-            if (ch != ']') {
-                key[klen++] = ch;
-            } else {
-                break;
-            }
-        }
-    }
-
-    if (pos >= data_len) {
-        INFO("receive data length error, topic: %s, data: %s", topic, data);
-        return;
-    }
-
-    if (klen <= 0) {
-        INFO("receive data key error, topic: %s, data: %s", topic, data);
-        return;
-    }
-
-    if(klen == 2 && ((key[0] == 'o' && key[1] == 'n') || (key[0] == 'O' && key[1] == 'N'))) {
-        pinOn(data + pos, data_len - pos);
-    } else if(klen == 3 && ((key[0] == 'o' && key[1] == 'f' && key[2] == 'f') || (key[0] == 'O' && key[1] == 'F' && key[2] == 'F'))) {
-        pinOff(data + pos, data_len - pos);
-    } else if(klen == 5 && key[0] == 's' && key[1] == 't' && key[2] == 'a' && key[3] == 't' && key[4] == 'e') {
-        pinState(data + pos, data_len - pos);
     }
 }
 
@@ -256,17 +164,6 @@ void get_config_done() {
 void user_init(void) {
     uart_init(BIT_RATE_115200, BIT_RATE_115200);
     //os_delay_us(60000);
-
-    gpio_init();
-    uint8_t i = 0;
-    for (; i < g_portcfg_cnt; i++) {
-        struct portcfg* cfg = &g_portcfg[i];
-        if(cfg != NULL) {
-            PIN_FUNC_SELECT(cfg->periphsid,cfg->funcid);
-            GPIO_OUTPUT_SET(cfg->port, (cfg->onoff ? 1 : 0));
-        }
-    }
-
     wifi_set_opmode(STATION_MODE);
     wifi_station_set_auto_connect(false);
     system_init_done_cb(to_scan_wifi);
